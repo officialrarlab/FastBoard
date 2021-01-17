@@ -7,12 +7,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * Simple Bukkit ScoreBoard API with 1.7 to 1.16 support.
@@ -251,16 +246,14 @@ public class FastBoard {
      * @throws IllegalArgumentException if one line is longer than 30 chars on 1.12 or lower
      * @throws IllegalStateException    if {@link #delete()} was call before
      */
-    public void updateLines(Collection<String> lines) {
+    public void updateLines(List<String> lines) {
         Objects.requireNonNull(lines, "lines");
 
         if (!VersionType.V1_13.isHigherOrEqual()) {
-            int lineCount = 0;
-            for (String s : lines) {
-                if (s != null && s.length() > 30) {
-                    throw new IllegalArgumentException("Line " + lineCount + " is longer than 30 chars");
-                }
-                lineCount++;
+            final ListIterator<String> iterator = lines.listIterator();
+            while (iterator.hasNext()) {
+                final String current = iterator.next();
+                if (current != null && current.length() > 30) iterator.set(current.substring(0, 30));
             }
         }
 
@@ -277,17 +270,13 @@ public class FastBoard {
                 if (oldLines.size() > linesSize) {
                     for (int i = oldLinesCopy.size(); i > linesSize; i--) {
                         sendTeamPacket(i - 1, TeamMode.REMOVE);
-
                         sendScorePacket(i - 1, ScoreboardAction.REMOVE);
-
                         oldLines.remove(0);
                     }
                 } else {
                     for (int i = oldLinesCopy.size(); i < linesSize; i++) {
                         sendScorePacket(i, ScoreboardAction.CHANGE);
-
                         sendTeamPacket(i, TeamMode.CREATE);
-
                         oldLines.add(oldLines.size() - i, getLineByScore(i));
                     }
                 }
@@ -490,15 +479,10 @@ public class FastBoard {
     }
 
     private void sendPacket(Object packet) throws ReflectiveOperationException {
-        if (deleted) {
-            throw new IllegalStateException("This FastBoard is deleted");
-        }
-
-        if (player.isOnline()) {
-            Object entityPlayer = PLAYER_GET_HANDLE.invoke(player);
-            Object playerConnection = PLAYER_CONNECTION.get(entityPlayer);
-            SEND_PACKET.invoke(playerConnection, packet);
-        }
+        if (deleted || !player.isOnline()) return;
+        Object entityPlayer = PLAYER_GET_HANDLE.invoke(player);
+        Object playerConnection = PLAYER_CONNECTION.get(entityPlayer);
+        SEND_PACKET.invoke(playerConnection, packet);
     }
 
     private void setField(Object object, Class<?> fieldType, Object value) throws ReflectiveOperationException {
